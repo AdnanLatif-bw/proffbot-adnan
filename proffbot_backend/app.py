@@ -24,7 +24,7 @@ openai = OpenAI()
 app = FastAPI()
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["https://AdnanLatif-proffbot.hf.space"],  # 🔒 Orestrict this to just HF frontend URL
+    allow_origins=["*"],#["https://AdnanLatif-proffbot.hf.space"],  # 🔒 Orestrict this to just HF frontend URL
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -95,6 +95,16 @@ def run_preprocessing():
 
 run_preprocessing()  # ✅ run once at startup
 
+#✅ 5.1. Lead intent detection
+def detect_lead_intent(user_message: str) -> bool:
+    triggers = [
+        "how can I contact", "can I reach", "get in touch", "work with you",
+        "consulting", "available for freelance", "available for hire", "talk to Adnan",
+        "interested in collaboration", "partner with you"
+    ]
+    return any(trigger in user_message.lower() for trigger in triggers)
+
+
 def load_structured_data():
     file_path = "me/parsed_structured_data.json"
     if not os.path.exists(file_path):
@@ -103,6 +113,7 @@ def load_structured_data():
         raise FileNotFoundError("Missing summary.txt")
     with open(file_path, "r", encoding="utf-8") as f:
         return json.load(f)
+
 #✅ 6. Prompt construction with cached data
 profile_data = load_structured_data()
 with open("me/summary.txt", "r", encoding="utf-8") as f:
@@ -272,7 +283,17 @@ Respond **only** with:
         )
         return {"response": retry_response.choices[0].message.content}
 
-    return {"response": choice.message.content}
+    response_text = choice.message.content or ""
+
+    # Lead detection
+    if detect_lead_intent(req.message):
+        response_text += (
+            "\n\n💬 It sounds like you might be interested in collaborating or connecting further.\n"
+            "Would you like to get in touch? I can pass your name, organization, and email to Adnan."
+        )
+
+    return {"response": response_text}
+
 
 
 
