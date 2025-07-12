@@ -3,7 +3,7 @@ import requests
 import os
 
 BACKEND_URL = "https://proffbot.onrender.com/chat"
-logo_path = os.path.join("file", "assets", "profile_pic.jpg")
+logo_path = os.path.join("file", "assets", "profile_pic.png")
 
 def chat_with_backend(message, history):
     formatted_history = []
@@ -48,7 +48,7 @@ with gr.Blocks(title="Proffesional Digital Twin", css=css) as demo:
     with gr.Row():
         with gr.Column(scale=0, min_width=100):  # Logo
             gr.Image(
-                value="assets/profile_pic.jpg",
+                value="assets/profile_pic.png",
                 show_label=False,
                 show_download_button=False,
                 show_share_button=False,
