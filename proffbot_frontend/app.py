@@ -3,7 +3,9 @@ import requests
 import os
 
 BACKEND_URL = "https://proffbot.onrender.com/chat"
-logo_path = os.path.join("file", "assets", "profile_pic.png")
+# === BASE64-encoded image for Hugging Face compatibility ===
+with open("assets/profile_pic_base64.txt", "r") as f:
+    image_data = f.read()
 
 def chat_with_backend(message, history):
     formatted_history = []
@@ -46,17 +48,14 @@ css="""
 with gr.Blocks(title="Proffesional Digital Twin", css=css) as demo:
     
     with gr.Row():
-        with gr.Column(scale=0, min_width=100):  # Logo
-            gr.Image(
-                value="assets/profile_pic.png",
-                show_label=False,
-                show_download_button=False,
-                show_share_button=False,
-                show_fullscreen_button=False,
-                height=100,
-                width=100,
-                container=False,
-                elem_id="logo-img",
+        with gr.Column(scale=0, min_width=100):
+            gr.HTML(
+                f"""
+                <div id='logo-img'>
+                    <img src="data:image/png;base64,{image_data}"
+                        style="max-width:80px; max-height:80%; object-fit:contain; border-radius:8px;" />
+                </div>
+                """
             )
         with gr.Column(scale=1):
             gr.HTML("""
