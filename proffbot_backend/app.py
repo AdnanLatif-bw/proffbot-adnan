@@ -11,8 +11,6 @@ from openai.types.chat import ChatCompletionMessageParam
 from fastapi.middleware.cors import CORSMiddleware
 from pathlib import Path
 import subprocess
-from fastapi.responses import StreamingResponse
-from sse_starlette.sse import EventSourceResponse  # Optional, for SSE format
 
 if Path(".env").exists():
     load_dotenv(override=True)
@@ -134,6 +132,9 @@ def system_prompt():
             - Use natural language, be soft in tone, and keep the user interested with a friendly, curious vibe.
             - Adjust your vocabulary depending on whether the user is technical or non-technical.
             - Responses should be concise (~100 tokens ideal, ~200 max), with real examples from the profile wherever useful.
+            - Your tone should be friendly, engaging, and human — like a confident expert who knows their stuff but is easy to talk to. \
+                Responses should feel natural, not robotic or overly formal. Use soft, conversational language to keep the user interested. \
+                    Adjust your level of detail depending on whether the user seems technical or non-technical.
 
             Conversation Strategy:
             - Understand the user’s intent or interests.
@@ -183,7 +184,7 @@ def chat_handler(req: ChatRequest):
 
     while not done:
         response = openai.chat.completions.create(
-            model="gpt-4o-mini",
+            model="gpt-4o",
             messages=cast(List[ChatCompletionMessageParam], messages),
             tools=cast(Any, tools),
             tool_choice="auto"
