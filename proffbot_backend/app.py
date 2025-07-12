@@ -166,6 +166,7 @@ def system_prompt():
         return prompt
 _cached_prompt = system_prompt()  # ✅ cache once
 
+
 #✅ 7. ChatRequest class
 class ChatRequest(BaseModel):
     message: str
@@ -219,7 +220,60 @@ def chat_handler(req: ChatRequest):
         else:
             done = True
 
+    # --- Self-Critique and Retry ---
+    critique_checklist_prompt = f"""
+You are reviewing the chatbot's response for quality and correctness.
+
+Checklist:
+1. ✅ Grounded strictly in provided profile data?
+2. ✅ Does it meaningfully answer the user's question?
+3. ✅ Free from hallucination or invented facts?
+4. ✅ Concise (~100 tokens)?
+5. ✅ Friendly, confident, human tone?
+
+---
+
+User message: {req.message}
+
+Chatbot response:
+\"\"\"
+{choice.message.content}
+\"\"\"
+
+Evaluate each point. If any fail, return "REWRITE_NEEDED: [one-line reason]". Otherwise return "APPROVED".
+
+Respond **only** with:
+- "APPROVED"
+- or "REWRITE_NEEDED: ..."
+"""
+
+    critique_response = openai.chat.completions.create(
+        model="gpt-4o",
+        messages=[
+            {"role": "system", "content": "You are a response validator for an AI chatbot."},
+            {"role": "user", "content": critique_checklist_prompt},
+        ],
+    )
+    verdict = critique_response.choices[0].message.content.strip()
+    print(f"🧠 Critique verdict: {verdict}")
+
+    if verdict.startswith("REWRITE_NEEDED"):
+        retry_response = openai.chat.completions.create(
+            model="gpt-4o",
+            messages=[
+                {"role": "system", "content": _cached_prompt},
+                *[cast(ChatCompletionMessageParam, msg) for msg in req.history],
+                {"role": "user", "content": req.message},
+                {"role": "assistant", "content": choice.message.content},
+                {"role": "user", "content": "Please rewrite your answer to better match the checklist: grounded, factual, concise, friendly."}
+            ],
+            tools=cast(Any, tools),
+            tool_choice="auto"
+        )
+        return {"response": retry_response.choices[0].message.content}
+
     return {"response": choice.message.content}
+
 
 
 

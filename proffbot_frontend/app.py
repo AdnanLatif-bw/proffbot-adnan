@@ -2,7 +2,7 @@ import gradio as gr
 import requests
 import os
 
-BACKEND_URL = "https://proffbot.onrender.com/chat"
+BACKEND_URL = "http://127.0.0.1:8000/chat"
 # === BASE64-encoded image for Hugging Face compatibility ===
 with open("assets/profile_pic_base64.txt", "r") as f:
     image_data = f.read()
