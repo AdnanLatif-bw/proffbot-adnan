@@ -16,17 +16,21 @@ jobs:
       - name: Checkout repo
         uses: actions/checkout@v3
 
-      - name: Clone existing Hugging Face Space
+      - name: Prepare Hugging Face Space files
         run: |
+          mkdir hf-space
+          cp -r proffbot_frontend/* hf-space/
+          cp README.md hf-space/
+          cp proffbot_frontend/requirements.txt hf-space/  # <-- CRUCIAL
+
+      - name: Deploy to Hugging Face
+        run: |
+          cd hf-space
+          git init
           git config --global user.email "github-actions@github.com"
           git config --global user.name "GitHub Actions"
-          git clone https://AdnanLatif:${{ secrets.HF_WRITE_TOKEN }}@huggingface.co/spaces/AdnanLatif/proffbot
-          cp -r proffbot_frontend/* proffbot/
-          cp README.md proffbot/
-
-      - name: Push updates to Hugging Face Space
-        run: |
-          cd proffbot
+          git remote add origin https://AdnanLatif:${{ secrets.HF_WRITE_TOKEN }}@huggingface.co/spaces/AdnanLatif/proffbot
+          git checkout -b main
           git add .
-          git commit -m "🔁 Auto-deploy to HF Space" || echo "No changes to commit"
-          git push origin main
+          git commit -m "🔁 Auto-deploy to HF Space"
+          git push -f origin main
