@@ -1,0 +1,34 @@
+name: Deploy to Hugging Face Space
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'proffbot_frontend/**'
+      - '.github/workflows/deploy-to-huggingface.yml'
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+
+    steps:
+    - name: Checkout repo
+      uses: actions/checkout@v3
+
+    - name: Set up Git
+      run: |
+        git config --global user.name "Adnan Latif"
+        git config --global user.email "you@example.com"
+
+    - name: Push frontend to Hugging Face
+      env:
+        HF_TOKEN: ${{ secrets.HF_WRITE_TOKEN }}
+      run: |
+        git clone https://AdnanLatif:$HF_TOKEN@huggingface.co/spaces/AdnanLatif/proffbot-adnan hf-space
+
+        rsync -av --delete proffbot_frontend/ hf-space/
+
+        cd hf-space
+        git add .
+        git commit -m "🚀 Auto-deploy from GitHub" || echo "No changes to commit"
+        git push
