@@ -31,7 +31,7 @@ user_turn_tracker = {}
 app = FastAPI()
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],#["https://AdnanLatif-proffbot.hf.space"],  # 🔒 Orestrict this to just HF frontend URL
+    allow_origins=["https://AdnanLatif-proffbot.hf.space"],  # 🔒 Orestrict this to just HF frontend URL
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],

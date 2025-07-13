@@ -1,49 +1,85 @@
 import gradio as gr
 import requests
+import uuid
 import os
 
-BACKEND_URL = "http://127.0.0.1:8000/chat"
-# === BASE64-encoded image for Hugging Face compatibility ===
-with open("assets/profile_pic_base64.txt", "r") as f:
-    image_data = f.read()
+BACKEND_URL = "https://proffbot-backend.onrender.com/chat"
+SESSION_ID = str(uuid.uuid4())
+
+image_data = ""
+image_path = "assets/profile_pic_base64.txt"
+
+if os.path.exists(image_path):
+    with open(image_path, "r") as f:
+        image_data = f.read().strip()
+else:
+    print("⚠️ Warning: profile_pic_base64.txt not found.")
+
 
 def chat_with_backend(message, history):
     formatted_history = []
     for turn in history:
-        formatted_history.append({"role": "user", "content": turn[0]})
-        formatted_history.append({"role": "assistant", "content": turn[1]})
+        if turn[0] is not None and turn[1] is not None:
+            formatted_history.append({"role": "user", "content": turn[0]})
+            formatted_history.append({"role": "assistant", "content": turn[1]})
 
     payload = {
         "message": message,
-        "history": formatted_history
+        "history": formatted_history,
+        "session_id": SESSION_ID, 
+        "clear": False
     }
 
     try:
         response = requests.post(BACKEND_URL, json=payload)
-        response.raise_for_status()
-        reply = response.json()["response"]
-    except Exception as e:
+        data = response.json()
+        reply = data.get("response", ["Sorry, something went wrong."])
+        reply = [r for r in reply if isinstance(r, str)]
+    
+    except requests.exceptions.RequestException as e:
+        if hasattr(e, 'response') and e.response is not None:
+            print(f"❌ Backend error: {e.response.status_code} - {e.response.text}")
         reply = f"Error: {e}"
+
 
     return reply
 
-css="""
-#logo-img button.svelte-1ipelgc {
-    display: none !important;  /* Hide fullscreen icon */
+
+css = """ * Hide fullscreen icon * #logo-img button.svelte-1ipelgc { display: none !important;}
+
+/* Send button container and style */
+                #custom-send-btn > .prose button {
+                    background-color: #1E90FF !important;
+                    color: white !important;
+                    font-size: 16px !important;
+                    font-weight: bold !important;
+                    height: 52px !important;
+                    width: 100% !important;
+                    border: none !important;
+                    border-radius: 6px !important;
+                    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2) !important;
+                    padding: 12px 16px !important;
+                    cursor: pointer !important;
+                }
+
+#custom-send-btn > .prose button:hover {
+    background-color: #1C86EE !important;
 }
 
-#send-btn button, #clear-btn button {
-    font-size: 12px !important;
-    padding: 0px 0px !important;
-    height: 10px !important;
-    width: 25%;
-    margin-bottom: 4px;
-}
+/* Clear button style */
+    #clear-btn > .prose button {
+        margin-top: 10px !important;
+        font-size: 14px !important;
+        padding: 12px !important;
+        font-weight: bold !important;
+        width: 100% !important;
+        background-color: #444 !important;
+        color: white !important;
+        border-radius: 6px !important;
+    }
+    """
 
-#clear-btn button {
-    margin-top: 2px;
-}
-"""
+
 
 with gr.Blocks(title="Proffesional Digital Twin", css=css) as demo:
     
@@ -69,25 +105,54 @@ with gr.Blocks(title="Proffesional Digital Twin", css=css) as demo:
                 </div>
             """)
 
-    chatbot = gr.Chatbot(height=500, label="Conversation")
+    chatbot = gr.Chatbot(height=400, label="Conversation with Adnan")
 
     with gr.Row():
         msg = gr.Textbox(placeholder="Type your question here...", show_label=False, scale=5)
-        with gr.Column(scale=1):
-            with gr.Row():
-                send_btn = gr.Button("Send", elem_id="send-btn")
-            with gr.Row():
-                clear_btn = gr.Button("Clear", elem_id="clear-btn")
+        send_btn = gr.Button("Send", elem_id="custom-send-btn", scale=1)
 
+    with gr.Row():
+        clear_btn = gr.Button("🧹 Clear Chat", elem_id="clear-btn", scale=1)
 
     def user_input(user_message, chat_history):
         reply = chat_with_backend(user_message, chat_history)
-        chat_history.append((user_message, reply))
+
+        if isinstance(reply, str):
+            chat_history.append((user_message, reply))
+
+        elif isinstance(reply, list):
+            if reply:
+                chat_history.append((user_message, reply[0]))
+                for extra in reply[1:]:
+                    chat_history.append((None, extra))
+            else:
+                chat_history.append((user_message, "Sorry, no response."))
+        else:
+            chat_history.append((user_message, str(reply)))
         return "", chat_history
+
 
     send_btn.click(user_input, [msg, chatbot], [msg, chatbot])
     msg.submit(user_input, [msg, chatbot], [msg, chatbot])
-    clear_btn.click(lambda: None, None, chatbot, queue=False)
+
+    def clear_chat():
+        try:
+            payload = {
+                "message": "clear_request", 
+                "history": [],
+                "session_id": SESSION_ID,
+                "clear": True
+            }
+            requests.post(BACKEND_URL, json=payload)
+            print("🧹 Chat and session state cleared.")
+        except Exception as e:
+            print("Clear error:", e)
+        return []
+
+
+    clear_btn.click(clear_chat, None, chatbot, queue=False)
+
+
 
 
 if __name__ == "__main__":
