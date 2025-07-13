@@ -115,21 +115,28 @@ with gr.Blocks(css=css) as demo:
         clear_btn = gr.Button("🧹 Clear Chat", elem_id="clear-btn", scale=1)
 
     def user_input(user_message, chat_history):
-        reply = chat_with_backend(user_message, chat_history)
+        try:
+            reply = chat_with_backend(user_message, chat_history)
 
-        if isinstance(reply, str):
-            chat_history.append((user_message, reply))
+            if isinstance(reply, str):
+                chat_history.append((user_message, reply))
 
-        elif isinstance(reply, list):
-            if reply:
-                chat_history.append((user_message, reply[0]))
-                for extra in reply[1:]:
-                    chat_history.append((None, extra))
+            elif isinstance(reply, list):
+                if reply:
+                    chat_history.append((user_message, reply[0]))
+                    for extra in reply[1:]:
+                        chat_history.append((None, extra))
+                else:
+                    chat_history.append((user_message, "Sorry, no response."))
             else:
-                chat_history.append((user_message, "Sorry, no response."))
-        else:
-            chat_history.append((user_message, str(reply)))
+                chat_history.append((user_message, str(reply)))
+
+        except Exception as e:
+            print(f"❌ Exception in user_input: {e}")
+            chat_history.append((user_message, "Error during reply generation."))
+
         return "", chat_history
+
 
 
     send_btn.click(user_input, [msg, chatbot], [msg, chatbot])
