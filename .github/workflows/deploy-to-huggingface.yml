@@ -5,6 +5,7 @@ on:
     branches: [main]
     paths:
       - "proffbot_frontend/**"
+      - "README.md"
       - ".github/workflows/deploy-to-huggingface.yml"
 
 jobs:
@@ -15,9 +16,15 @@ jobs:
       - name: Checkout repo
         uses: actions/checkout@v3
 
-      - name: Push frontend to Hugging Face Space
+      - name: Prepare Hugging Face deployment
         run: |
-          cd proffbot_frontend
+          mkdir hf-space
+          cp -r proffbot_frontend/* hf-space/
+          cp README.md hf-space/
+
+      - name: Push to Hugging Face Space
+        run: |
+          cd hf-space
           git init
           git config --global user.email "github-actions@github.com"
           git config --global user.name "GitHub Actions"
