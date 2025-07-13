@@ -3,7 +3,7 @@ import requests
 import uuid
 import os
 
-BACKEND_URL = "https://proffbot-backend.onrender.com/chat"
+BACKEND_URL = "https://proffbot.onrender.com/chat"
 SESSION_ID = str(uuid.uuid4())
 
 image_data = ""
