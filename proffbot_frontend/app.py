@@ -3,6 +3,11 @@ import requests
 import uuid
 import os
 
+import subprocess
+subprocess.run(["pip", "install", "gradio==4.44.1"])
+import gradio as gr; print(f"✅ Running Gradio v{gr.__version__}")
+
+
 BACKEND_URL = "https://proffbot.onrender.com/chat"
 SESSION_ID = str(uuid.uuid4())
 
