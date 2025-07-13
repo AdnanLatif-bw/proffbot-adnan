@@ -28,7 +28,7 @@ jobs:
           git init
           git config --global user.email "github-actions@github.com"
           git config --global user.name "GitHub Actions"
-          git remote add origin https://AdnanLatif:${{ secrets.HF_WRITE_TOKEN }}@huggingface.co/spaces/AdnanLatif/proffbot-adnan
+          git remote add origin https://AdnanLatif:${{ secrets.HF_WRITE_TOKEN }}@huggingface.co/spaces/AdnanLatif/proffbot
           git checkout -b main
           git add .
           git commit -m "🔁 Auto-deploy to HF Space"

@@ -1,20 +1,7 @@
 import requests
 import uuid
 import os
-
-import subprocess
-import sys
-import importlib
-
-# Force upgrade gradio before import
-subprocess.run([sys.executable, "-m", "pip", "install", "--upgrade", "gradio==4.44.1"])
-
-# If already imported, reload it
-if "gradio" in sys.modules:
-    importlib.reload(sys.modules["gradio"])
-
 import gradio as gr
-print(f"✅ Gradio version at runtime: {gr.__version__}")
 
 BACKEND_URL = "https://proffbot.onrender.com/chat"
 SESSION_ID = str(uuid.uuid4())
