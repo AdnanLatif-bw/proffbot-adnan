@@ -81,7 +81,7 @@ css = """ * Hide fullscreen icon * #logo-img button.svelte-1ipelgc { display: no
 
 
 
-with gr.Blocks(title="Proffesional Digital Twin", css=css) as demo:
+with gr.Blocks(css=css) as demo:
     
     with gr.Row():
         with gr.Column(scale=0, min_width=100):
