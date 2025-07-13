@@ -1,16 +1,17 @@
 # ✅ 1. Imports and .env loading
 
-from typing import cast, Any
+from typing import cast, Any, Optional
 from dotenv import load_dotenv
 from openai import OpenAI
 import json, os, requests
-from fastapi import FastAPI
-from pydantic import BaseModel
+from fastapi import FastAPI, HTTPException, Request
+from pydantic import BaseModel, Extra
 from typing import List, Dict
 from openai.types.chat import ChatCompletionMessageParam
 from fastapi.middleware.cors import CORSMiddleware
 from pathlib import Path
 import subprocess
+from collections import defaultdict
 
 if Path(".env").exists():
     load_dotenv(override=True)
@@ -19,6 +20,12 @@ assert os.getenv("OPENAI_API_KEY"), "Missing OPENAI_API_KEY"
 assert os.getenv("PUSHOVER_TOKEN"), "Missing PUSHOVER_TOKEN"
 assert os.getenv("PUSHOVER_USER"), "Missing PUSHOVER_USER"
 openai = OpenAI()
+
+session_lead_counter = defaultdict(int)
+
+# In-memory session-based turn tracker
+user_turn_tracker = {}
+
 
 #✅ 2. FastAPI setup + CORS
 app = FastAPI()
@@ -45,11 +52,11 @@ def record_user_details(email=None, name="Name not provided", notes="not provide
     if not email:
         return {"error": "Missing required email"}
     push(f"Recording {name} with email {email} and notes {notes}")
-    return {"recorded": "ok"}
+    return {"response": ["✅ User recorded."]}
 
 def record_unknown_question(question):
     push(f"Recording {question}")
-    return {"recorded": "ok"}
+    return {"response": ["❓ Unknown question recorded."]}
 
 #✅ 4. Tools JSON definitions
 record_user_details_json = {
@@ -96,13 +103,43 @@ def run_preprocessing():
 run_preprocessing()  # ✅ run once at startup
 
 #✅ 5.1. Lead intent detection
-def detect_lead_intent(user_message: str) -> bool:
-    triggers = [
-        "how can I contact", "can I reach", "get in touch", "work with you",
-        "consulting", "available for freelance", "available for hire", "talk to Adnan",
-        "interested in collaboration", "partner with you"
-    ]
-    return any(trigger in user_message.lower() for trigger in triggers)
+# ✅ 5.1. Lead intent detection (semantic version)
+def detect_lead_intent_via_llm(history: List[Dict[str, str]]) -> bool:
+    prompt = """
+        You are analyzing this chat history to detect if the user may be interested in a professional connection or collaboration with Adnan Latif.
+
+        Lead intent includes both **explicit** and **indirect** signals such as:
+        - Exploring Adnan’s leadership experience or strategic thinking
+        - Asking about past projects or business impact
+        - Questions consistent with evaluating someone for a role
+        - Showing interest in collaboration, consulting, or hiring
+        - Asking how to get in touch or continue the conversation
+
+        Examples of lead intent:
+        - “Would you be open to a new opportunity?”
+        - “How do you usually lead AI teams?”
+        - “What kind of impact do you aim for?”
+        - “Would love to connect further—what’s the best way?”
+
+        Respond with:
+        - "YES" — if there are **any signs** that the user may be evaluating Adnan for hiring, partnership, consulting, or collaboration
+        - "NO" — if there is clearly no such intent
+
+        Chat history:
+        {}
+        ---
+        Lead intent?
+""".format("\n".join([f"{m['role']}: {m['content']}" for m in history if m["role"] in ["user", "assistant"]]))
+
+    response = openai.chat.completions.create(
+        model="gpt-4o",
+        messages=[{"role": "user", "content": prompt}],
+    )
+    answer = response.choices[0].message.content.strip().upper()
+    return answer == "YES"
+
+
+
 
 
 def load_structured_data():
@@ -182,10 +219,30 @@ _cached_prompt = system_prompt()  # ✅ cache once
 class ChatRequest(BaseModel):
     message: str
     history: List[Dict[str, str]]
+    session_id: Optional[str] = None
+    clear: Optional[bool] = False  # ✅ Add this if not already present
+    class Config:
+        extra = "allow"
 #✅ 8. Chat handler
 
 @app.post("/chat")
 def chat_handler(req: ChatRequest):
+    if not req.message or not isinstance(req.message, str):
+        raise HTTPException(status_code=400, detail="Invalid or missing user message.")
+    
+    if not isinstance(req.history, list):
+        raise HTTPException(status_code=400, detail="Invalid history format.")
+
+    # Optional: clear session state
+    if getattr(req, "clear", False):
+        session_id = req.session_id or str(id(req))
+        user_turn_tracker.pop(session_id, None)
+        session_lead_counter.pop(session_id, None)
+        print("🧹 Session cleared from trackers.")
+
+    session_id = req.session_id or "default"
+    print(f"📡 Session ID: {session_id}")
+
     tool_dispatch = {
         "record_user_details": record_user_details,
         "record_unknown_question": record_unknown_question,
@@ -205,34 +262,33 @@ def chat_handler(req: ChatRequest):
 
         if choice.finish_reason == "tool_calls":
             msg = choice.message
-            tool_calls = msg.tool_calls
+            tool_calls = msg.tool_calls or []
 
-            if tool_calls:
-                results = []
-                for tool_call in tool_calls:
-                    tool_name = tool_call.function.name
-                    try:
-                        arguments = json.loads(tool_call.function.arguments)
-                        tool = tool_dispatch.get(tool_name)
-                        if not tool:
-                            raise Exception(f"Tool '{tool_name}' not found.")
-                        result = tool(**arguments)
-                    except Exception as e:
-                        result = {"error": f"Tool call '{tool_name}' failed: {str(e)}"}
+            results = []
+            for tool_call in tool_calls:
+                tool_name = tool_call.function.name
+                try:
+                    arguments = json.loads(tool_call.function.arguments)
+                    tool = tool_dispatch.get(tool_name)
+                    if not tool:
+                        raise Exception(f"Tool '{tool_name}' not found.")
+                    result = tool(**arguments)
+                except Exception as e:
+                    result = {"error": f"Tool call '{tool_name}' failed: {str(e)}"}
 
-                    results.append({
-                        "role": "tool",
-                        "content": json.dumps(result),
-                        "tool_call_id": tool_call.id
-                    })
+                results.append({
+                    "role": "tool",
+                    "content": json.dumps(result),
+                    "tool_call_id": tool_call.id
+                })
 
-                messages.append(msg)
-                messages.extend(results)
+            messages.append(msg)
+            messages.extend(results)
         else:
             done = True
 
-    # --- Self-Critique and Retry ---
-    critique_checklist_prompt = f"""
+    # Self-critique
+    critique_prompt = f"""
 You are reviewing the chatbot's response for quality and correctness.
 
 Checklist:
@@ -247,22 +303,15 @@ Checklist:
 User message: {req.message}
 
 Chatbot response:
-\"\"\"
-{choice.message.content}
-\"\"\"
+\"\"\"{choice.message.content}\"\"\"
 
-Evaluate each point. If any fail, return "REWRITE_NEEDED: [one-line reason]". Otherwise return "APPROVED".
-
-Respond **only** with:
-- "APPROVED"
-- or "REWRITE_NEEDED: ..."
+Evaluate each point. If any fail, return "REWRITE_NEEDED: [reason]". Otherwise return "APPROVED".
 """
-
     critique_response = openai.chat.completions.create(
-        model="gpt-4o",
+        model="gpt-4o-mini",
         messages=[
             {"role": "system", "content": "You are a response validator for an AI chatbot."},
-            {"role": "user", "content": critique_checklist_prompt},
+            {"role": "user", "content": critique_prompt},
         ],
     )
     verdict = critique_response.choices[0].message.content.strip()
@@ -276,29 +325,76 @@ Respond **only** with:
                 *[cast(ChatCompletionMessageParam, msg) for msg in req.history],
                 {"role": "user", "content": req.message},
                 {"role": "assistant", "content": choice.message.content},
-                {"role": "user", "content": "Please rewrite your answer to better match the checklist: grounded, factual, concise, friendly."}
+                {"role": "user", "content": "Please rewrite your answer in the voice of Adnan Latif, grounded strictly in the structured profile data. Make it meaningful, factual, concise, and friendly."}
             ],
             tools=cast(Any, tools),
             tool_choice="auto"
         )
-        return {"response": retry_response.choices[0].message.content}
+        response_text = retry_response.choices[0].message.content
+    else:
+        response_text = choice.message.content or ""
 
-    response_text = choice.message.content or ""
+    # Lead intent detection
+    lead_intent_detected = detect_lead_intent_via_llm(
+        req.history + [{"role": "user", "content": req.message}]
+    )
+    print(f"🤖 Semantic lead intent: {lead_intent_detected}")
+    safe_response_text = str(response_text).strip()
 
-    # Lead detection
-    if detect_lead_intent(req.message):
-        response_text += (
-            "\n\n💬 It sounds like you might be interested in collaborating or connecting further.\n"
-            "Would you like to get in touch? I can pass your name, organization, and email to Adnan."
-        )
+    if lead_intent_detected:
+        print("🔍 Lead intent detected!")
+        session_lead_counter[session_id] += 1
+        lead_count = session_lead_counter[session_id]
+        print(f"📊 Lead count for session: {lead_count}")
 
-    return {"response": response_text}
+        first_trigger = 3
+        repeat_every = 5
+        # Check if it's time to re-offer
+        is_initial = lead_count == first_trigger
+        is_repeat = (lead_count > first_trigger) and ((lead_count - first_trigger) % repeat_every == 0)
+
+
+        if is_initial or is_repeat:
+            # Check if user was already offered followup in past turns (not current response)
+            past_turns = [m["content"].lower() for m in req.history if m["role"] == "assistant"]
+            print(f"🧾 Scanning this for offer phrases:\n{safe_response_text.lower()}")
+
+            already_offered = any(
+                any(phrase in turn for phrase in ["share your email",
+                        "get in touch",
+                        "contact",
+                        "connect",
+                        "provide your contact",
+                        "feel free to share your contact",
+                        "share your contact details",
+                        "record your interest"])
+                for turn in past_turns
+            )
+
+            print(f"📎 Already offered before? {already_offered}")
+
+
+            if not already_offered:
+                followup = (
+                    "\n\n💬 It looks like you're interested in connecting or collaborating.\n"
+                    "Would you like to share your contact info so I can pass it along to Adnan?"
+                )
+                safe_response_text += followup
+
+    print("📝 Final response payload:", [safe_response_text])
+    return {"response": [safe_response_text]}
 
 
 
+@app.post("/clear")
+async def clear_session(req: Request):
+    data = await req.json()
+    session_id = data.get("session_id")
+    if session_id:
+        user_turn_tracker.pop(session_id, None)
+        print(f"🧹 Session {session_id} cleared.")
+    return {"cleared": True}
 
-
-# ✅ 5. Health check endpoint for Render
 @app.get("/")
 def root():
     return {"status": "ok"}
