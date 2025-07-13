@@ -9,9 +9,9 @@ import importlib
 # Force upgrade gradio before import
 subprocess.run([sys.executable, "-m", "pip", "install", "--upgrade", "gradio==4.44.1"])
 
-# Reload modules after install
-import importlib
-importlib.reload(sys.modules.get("gradio", importlib.import_module("gradio")))
+# If already imported, reload it
+if "gradio" in sys.modules:
+    importlib.reload(sys.modules["gradio"])
 
 import gradio as gr
 print(f"✅ Gradio version at runtime: {gr.__version__}")
