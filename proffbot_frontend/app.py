@@ -3,6 +3,8 @@ import requests
 import uuid
 import os
 
+print(f"🔍 Gradio version: {gr.__version__}")
+
 BACKEND_URL = "https://proffbot.onrender.com/chat"
 SESSION_ID = str(uuid.uuid4())
 
