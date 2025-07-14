@@ -5,10 +5,8 @@ from openai.types.chat import ChatCompletionMessageParam
 from tools.record import tool_dispatch, tools
 
 
-def run_chat_completion(messages: List[Dict[str, str]]) -> str:
-    done = False
-
-    while not done:
+def run_chat_completion(messages: List[Dict[str, str]]) -> Dict[str, Any]:
+    while True:
         response = openai.chat.completions.create(
             model=MODEL_NAME,
             messages=cast(List[ChatCompletionMessageParam], messages),
@@ -41,6 +39,10 @@ def run_chat_completion(messages: List[Dict[str, str]]) -> str:
 
             messages.append(msg)
             messages.extend(results)
+
         else:
-            done = True
-            return choice.message.content or ""
+            return {
+                "content": choice.message.content or "",
+                "tool_calls": choice.message.tool_calls or [],
+            }
+

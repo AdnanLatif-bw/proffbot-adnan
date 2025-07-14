@@ -12,6 +12,8 @@ from main.critique_agent import evaluate_and_fix_response
 from main.intent_agent import maybe_add_lead_followup
 from tools.record import tools
 from main.chat_runner import run_chat_completion
+from tools.record import tools,tool_dispatch
+import json
 
 
 
@@ -60,13 +62,21 @@ def chat_handler(req: ChatRequest):
     messages = [{"role": "system", "content": _cached_prompt}] + req.history + [{"role": "user", "content": req.message}]
 
     # Run the core chat
-    raw_response = run_chat_completion(messages)
+    response_obj = run_chat_completion(messages)
+    response_text = response_obj["content"]
+    tool_calls = response_obj.get("tool_calls", [])
 
+    # Optional logging of tool calls
+    if tool_calls:
+        print(f"🔧 Tool calls triggered ({len(tool_calls)}):")
+        for call in tool_calls:
+            print(f"[TOOL CALL] ID={call.id}, name={call.function.name}, args={call.function.arguments}")
+    
     # Self-critique and retry loop
     response_text = evaluate_and_fix_response(
         user_message=req.message,
         user_history=req.history,
-        raw_response=raw_response,
+        raw_response=response_text,
         tools=tools
     )
 
