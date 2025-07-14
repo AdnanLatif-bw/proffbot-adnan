@@ -3,7 +3,7 @@ import uuid
 import os
 import gradio as gr
 
-BACKEND_URL = "https://proffbot.onrender.com/chat"
+BACKEND_URL = "http://localhost:8000/chat"
 SESSION_ID = str(uuid.uuid4())
 
 image_data = ""

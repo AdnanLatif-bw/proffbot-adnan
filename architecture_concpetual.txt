@@ -1,0 +1,62 @@
+👤 User Input
+(message, history, session_id)
+    |
+    V
+🚀 FastAPI `/chat` Endpoint
+→ 🧠 Routes user query to main pipeline  
+→ 🧹 Clears session if needed  
+    |
+    V
+🔧 `run_preprocessing()`
+→ 🏗️ Loads and structures profile data and summary  
+→ Ensures input grounding  
+    |
+    V
+🧱 `system_prompt(summary, profile_data)`
+→ 🧠 Constructs the system-level prompt to guide LLM behavior  
+→ Includes career, competencies, and summary  
+    |
+    V
+📚 Build Message Stack
+→ 🧾 Assembles `[system] + [history] + [user]`  
+→ Prepares message list for LLM  
+    |
+    V
+🧠 `run_chat_completion(messages)`
+→ 🎯 Core function that calls OpenAI model  
+→ Sends tool schemas (`tools`)  
+→ Handles tool calls if LLM requests them  
+    |
+    ├── Tool Calls Triggered? ──────────────┐
+    |                                      |
+    | ✅ Yes                               ❌ No
+    |  |                                   |
+    |  V                                   V
+    | 🛠️ `tool_dispatch` Lookup          📝 Use LLM Output as Response
+    |     - `record_user_details()`        (no tool actions required)
+    |     - `record_unknown_question()`    
+    |     → Sends to 📲 `pushover.py`  
+    |     → Returns tool result (JSON string)  
+    |     → Appended back to message stack  
+    |                                      |
+    | <──────────── Loop back to model ────┘
+    |
+    V
+🧪 `evaluate_and_fix_response(...)`
+→ 🔍 Critiques the model's output with a checklist  
+→ ⏪ Regenerates if confidence is low or hallucination detected  
+    |
+    V
+💡 `discovery_prompt_check(...)`
+→ 🌱 Adds proactive, relevant exploration prompts  
+→ E.g. “You might also want to explore…”  
+    |
+    V
+🎯 `maybe_add_lead_followup(...)`
+→ 🧲 Detects buying or interest signals  
+→ Appends friendly follow-up CTA (call-to-action)  
+    |
+    V
+📝 Final Response
+→ ✅ Returned to frontend
+→ 🎯 Delivers structured, high-trust answer grounded in profile

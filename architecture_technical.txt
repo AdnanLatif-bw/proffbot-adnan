@@ -1,0 +1,50 @@
+User Input (message + history)
+          ↓
+    FastAPI Backend (app.py)
+          ↓
+───────────────────────────────────────────────────────────────
+→ Preprocessing Layer
+    └─ run_preprocessing() ───────→ profile_data, summary
+                                     ↑
+                                     │
+→ System Prompt Setup
+    └─ system_prompt(summary, profile_data)
+───────────────────────────────────────────────────────────────
+          ↓
+→ Chat Handler (/chat endpoint)
+    └─ Builds full message list with system prompt
+          ↓
+→ run_chat_completion(messages)
+    └─ Calls OpenAI API with tool support
+          ↓
+    IF tool_calls:
+        └─ Dispatch to: tool_dispatch[tool_name]
+              ├─ record_user_details()        ← logs interested leads
+              └─ record_unknown_question()    ← logs unknown questions
+          ↓
+    ELSE:
+        └─ Return response.message.content
+───────────────────────────────────────────────────────────────
+          ↓
+→ Self-Critique Agent
+    └─ evaluate_and_fix_response(...)
+          ↓
+    IF approved: keep response
+    IF retry needed: regenerate response and revalidate
+───────────────────────────────────────────────────────────────
+          ↓
+→ Discovery Agent
+    └─ discovery_prompt_check(message, response)
+          ↓
+    IF generic interest found → append suggestions
+───────────────────────────────────────────────────────────────
+          ↓
+→ Intent Agent
+    └─ maybe_add_lead_followup(session_id, message, history, response)
+          ↓
+    IF intent detected → append lead prompt
+───────────────────────────────────────────────────────────────
+          ↓
+Final Response
+→ Returned to user via FastAPI
+───────────────────────────────────────────────────────────────
